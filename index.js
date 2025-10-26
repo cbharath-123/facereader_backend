@@ -10,7 +10,26 @@ const prisma = new PrismaClient();
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-app.use(cors({ origin: 'http://localhost:3000' }));
+// Allow CORS from frontend
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://facereader-frontend.vercel.app',
+  'https://facereader-frontend-*.vercel.app' // Vercel preview deployments
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all for now
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 app.post('/api/analyze', upload.single('image'), async (req, res) => {
