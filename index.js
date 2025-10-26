@@ -10,44 +10,48 @@ const prisma = new PrismaClient();
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Allow CORS from frontend
-const allowedOrigins = [
-  'http://localhost:3000',
-  'https://facereader-frontend.vercel.app',
-  'https://facereader-frontend-*.vercel.app' // Vercel preview deployments
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Allow all for now
-    }
-  },
-  credentials: true
-}));
+// Simplified CORS - allow all origins for now
+app.use(cors());
 app.use(express.json());
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ status: 'Backend is running!', timestamp: new Date().toISOString() });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Emotion Face Reader Backend' });
+});
 
 app.post('/api/analyze', upload.single('image'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No image provided' });
+    console.log('Received analyze request');
+    
+    if (!req.file) {
+      console.log('No file uploaded');
+      return res.status(400).json({ error: 'No image provided' });
+    }
+
+    console.log('File received:', req.file.mimetype, req.file.size, 'bytes');
 
     const buffer = req.file.buffer;
     const mimeType = req.file.mimetype;
 
     const emotion = await getEmotion(buffer, mimeType);
+    console.log('Detected emotion:', emotion);
 
-    // Save to Prisma
-    await prisma.emotionLog.create({ data: { emotion } });
+    // Save to Prisma (skip if database not available)
+    try {
+      await prisma.emotionLog.create({ data: { emotion } });
+      console.log('Saved to database');
+    } catch (dbError) {
+      console.warn('Database error (continuing anyway):', dbError.message);
+    }
 
     res.json({ emotion });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error analyzing emotion:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
 
